@@ -1,0 +1,7 @@
+---
+- name: Run setup_master_slave_db
+  hosts: server3
+  become: true
+
+  roles:
+    - setup_master_slave_db

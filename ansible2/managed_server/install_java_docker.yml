@@ -1,0 +1,9 @@
+---
+- name: Install packages
+  hosts: server2
+  become: true
+
+
+
+  roles:
+    - install_java_docker   

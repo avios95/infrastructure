@@ -1,0 +1,22 @@
+---
+- name: Add docker repo
+  get_url:
+    dest: /etc/yum.repos.d/docker.repo
+    url: https://download.docker.com/linux/centos/docker-ce.repo
+
+- name:  install Epel repo
+  yum: name=epel-release state=present
+
+- name:  Update packages
+  yum: name=* state=latest
+
+- name:  install packages
+  yum: name={{ packages }} state=present
+  vars:
+    packages:
+      - python-pip
+      - python-setuptools
+      - python-docker
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io

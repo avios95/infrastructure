@@ -1,0 +1,28 @@
+---
+- name: Add user
+  user:
+    name: apprunner
+    shell: /bin/false
+
+- name: Fix privileges
+  file:
+    dest: /opt/spring-petclinic
+    owner: apprunner
+    group: apprunner
+    recurse: yes
+
+- name: Create Unit file
+  template:
+    src: petclinic.service.j2
+    dest: /lib/systemd/system/petclinic.service
+    mode: 644
+
+- name: Reload Daemon
+  systemd:
+    daemon_reload: yes
+
+- name: Start service >> petclinic <<
+  service:
+    name: petclinic.service
+    state: started
+    enabled: yes

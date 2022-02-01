@@ -1,0 +1,105 @@
+pipeline {
+    agent { node { label 'da-kondrate-app' } }
+    environment {
+        DB_NAME = 'petclinic'
+        NAME_BILD_JOB = 'build_petclinic_app'
+    }
+    parameters {
+      string(name: 'USED_BUILD_VERSION', defaultValue: 'latest' , description: 'for use custom build version')
+    }
+    options {  buildDiscarder(logRotator(numToKeepStr: '2', artifactNumToKeepStr: '2'))  }
+    triggers {
+        cron('H 3 * * *')
+    }
+    stages {
+        stage('Get build number') {
+             when {
+              environment name: 'USED_BUILD_VERSION', value: 'latest'
+             }
+             steps {
+                 withCredentials([usernamePassword(credentialsId: 'jenkins-access-kondrate', usernameVariable: 'J_USER', passwordVariable: 'J_PASS')]) {
+                     script {
+                         env.USED_BUILD_VERSION = sh ( script: 'wget --auth-no-challenge --user=${J_USER} --password=${J_PASS}  -qO- ${JENKINS_URL}job/${NAME_BILD_JOB}/lastSuccessfulBuild/buildNumber',  returnStdout: true ).trim()
+                     }
+                 }
+             }
+         }
+        stage('Get previous build number') {
+
+              steps {
+                script {
+                    env.PREVIOUS_VERSION = sh ( script: 'echo $((${USED_BUILD_VERSION}-1))',  returnStdout: true ).trim()
+                }
+              }
+        }
+        stage('Deploy-db'){
+            agent { node { label 'da-kondrate-db' } }
+            steps {
+                sh " mkdir -p /opt/petclinic/mysql templates/"
+                sh " docker stop mysql-petclinic &&  docker rm mysql-petclinic || echo 'not running' "
+                sh """ echo "
+[mysqld]
+server_id=1
+sync_binlog=1
+gtid_mode=ON
+enforce-gtid-consistency=ON
+binlog_format=ROW
+log_bin=/var/log/mysql/mysql-bin.log " > $PWD/workspace/deploy_petclinic_app/master.cnf """
+
+                withCredentials([usernamePassword(credentialsId: 'db-access-kondrate', usernameVariable: 'DB_USER', passwordVariable: 'DB_PASS')]) {
+                    sh " docker run \
+                                    -d \
+                                    --restart always \
+                                    --name mysql-petclinic \
+                                    -e MYSQL_USER=${DB_USER} \
+                                    -e MYSQL_PASSWORD=${DB_PASS} \
+                                    -e MYSQL_ROOT_PASSWORD=root \
+                                    -e MYSQL_DATABASE=${DB_NAME}  \
+                                    -e MYSQL_ROOT_HOST=% \
+                                    -v /opt/petclinic/mysql:/var/lib/mysql \
+                                    -v $PWD/workspace/deploy_petclinic_app/master.cnf:/etc/mysql/conf.d/master.cnf \
+                                    -p 3306:3306 \
+                                    mysql:5.7.8 "
+                    sh """ sleep 10s; docker exec mysql-petclinic mysql -uroot -proot --execute="ALTER USER '${DB_USER}'@'%' IDENTIFIED BY '${DB_PASS}';" """
+                    sh """ docker exec mysql-petclinic mysql -uroot -proot --execute="GRANT SELECT, RELOAD, PROCESS, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO '${DB_USER}'@'%';" """
+
+               }
+            }
+        }
+        stage('Deploy-app') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'docker-registry-kondrate', usernameVariable: 'user', passwordVariable: 'pass')]) {
+                    sh " docker login http://docker-registry.ml  -u ${user} -p ${pass}"
+                }
+                sh " docker pull docker-registry.ml/java-petclinic:${USED_BUILD_VERSION} "
+                sh " docker stop java-petclinic && docker rm java-petclinic || echo 'not running' "
+                sh " sudo docker run \
+                                    -d \
+                                    --restart always \
+                                    --name java-petclinic \
+                                    -p 8080:8080 \
+                                    -v /opt/petclinic/logs:/opt/petclinic/logs docker-registry.ml/java-petclinic:${USED_BUILD_VERSION} "
+
+            }
+          }
+    }
+    post {
+        failure {
+            // checkout([$class: 'GitSCM',
+            //     branches: [[name: '*/master']],
+            //     doGenerateSubmoduleConfigurations: false,
+            //     extensions: [[$class: 'CleanCheckout']],
+            //     submoduleCfg: [],
+            //     userRemoteConfigs: [[ url: 'https://gogs-repo.ml/git/kondrate/infrastructure.git']]
+            // ])
+            // withCredentials([string(credentialsId: 'webex-key-kondrate', variable: 'WBX_KEY'),string(credentialsId: 'webex-room-id-kondrate', variable: 'WBX_ROOM_ID')]) {
+            //     sh 'WBX_KEY="${WBX_KEY}" WBX_ROOM_ID="${WBX_ROOM_ID}" MESSAGE="${BUILD_URL} has result FAILED"  python3 python_scripts/webex.py '
+            // }
+            build job: 'deploy_petclinic_app', parameters: [ string(name: 'USED_BUILD_VERSION', value: "${PREVIOUS_VERSION}")]
+            cleanWs()
+        }
+        success {
+            cleanWs()
+        }
+    }
+}

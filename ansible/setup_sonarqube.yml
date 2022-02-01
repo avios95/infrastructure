@@ -1,0 +1,10 @@
+---
+- name: Run sonarqube
+  hosts: server2
+  become: true
+
+  roles:
+    - setup_sonarqube
+  tasks:
+    - debug:
+        msg: "#Postgres DB root / {{ mysql_root_password }}"

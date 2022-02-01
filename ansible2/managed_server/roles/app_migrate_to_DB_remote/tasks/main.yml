@@ -1,0 +1,39 @@
+- name: Set credentials
+  set_fact:
+     db_user:  petclinic
+     db_pass:  passwdord
+     db_host:  'ip:3306'
+     db_name:  petclinic
+
+- name: Add new profile mysqlremote
+  template:
+    src: application-mysqlremote.properties.j2
+    dest: /opt/spring-petclinic/src/main/resources/application-mysqlremote.properties
+    mode: 644
+
+- name: Change args to start app
+  lineinfile:
+    path: /lib/systemd/system/petclinic.service
+    regexp: 'ExecStart=(.*)$'
+    line: 'ExecStart=/usr/bin/java -Dspring.profiles.active=mysqlremote -jar /opt/spring-petclinic/target/spring-petclinic-2.5.0-SNAPSHOT.jar'
+
+- name: compile project
+  shell: ./mvnw package
+  args:
+    chdir: /opt/spring-petclinic/
+
+- name: Fix privileges
+  file:
+    dest: /opt/spring-petclinic
+    owner: apprunner
+    group: apprunner
+    recurse: yes
+
+- name: Reload Daemon
+  systemd:
+    daemon_reload: yes
+
+- name: Restart service >> petclinic <<
+  service:
+    name: petclinic.service
+    state: restarted

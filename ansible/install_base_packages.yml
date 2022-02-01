@@ -1,0 +1,9 @@
+---
+- name: Install packages
+  hosts: server4
+  become: true
+
+
+
+  roles:
+    - install_base_packages

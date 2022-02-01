@@ -1,0 +1,69 @@
+---
+- name:  install Epel repo
+  dnf:
+    name: https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
+    state: present
+    disable_gpg_check: yes
+
+- name: Add config directory
+  shell: mkdir -p $PWD/nginx_config $PWD/nginx_config_certbot
+
+- name: Add certbot nginx config
+  template:
+    src: conf.template.certbot.j2
+    dest: $PWD/nginx_config/{{ domain }}.conf.template
+    mode: 644
+
+- name: Check run nginx container
+  shell: docker stop nginx &&  docker rm nginx || echo 'nginx is not running';
+
+- name: Check run certbot container
+  shell: docker stop certbot &&  docker rm certbot || echo 'certbot is not running';
+
+- name: Wipe volumes
+  shell: docker volume rm $(docker volume ls -q)
+
+
+- name: Run nginx container
+  shell: docker run -d --name nginx --restart always \
+            -e NGINX_HOST={{ domain }} \
+            -p 80:80 \
+            -v $PWD/nginx_config_certbot:/etc/nginx/templates \
+            -v certbot-etc:/etc/letsencrypt \
+            -v certbot-var:/var/lib/letsencrypt \
+            -v web-root:/usr/share/nginx/html \
+            nginx
+
+- name: Run certbot container
+  shell: docker run --name certbot \
+            -v certbot-etc:/etc/letsencrypt \
+            -v certbot-var:/var/lib/letsencrypt \
+            -v web-root:/usr/share/nginx/html \
+            certbot/certbot \
+            certonly --webroot --agree-tos --renew-by-default  \
+                                --preferred-challenges http-01 \
+                                --server https://acme-v02.api.letsencrypt.org/directory \
+                                --email {{ email }} \
+                                -w /usr/share/nginx/html \
+                                -d {{ domain }} -v
+
+- name: Add domain nginx config
+  template:
+    src: conf.template.j2
+    dest: $PWD/nginx_config/{{ domain }}.conf.template
+    mode: 644
+
+- name: Check run nginx container
+  shell: docker stop nginx &&  docker rm nginx || echo 'nginx is not running';
+
+- name: Run nginx container
+  shell: docker run -d --name nginx --restart always \
+            -e NGINX_HOST={{ domain }} \
+            -e PROXY_ADDRESS={{ proxy_ip }} \
+            -e PROXY_PORT={{ proxy_port }} \
+            -p 80:80 -p 443:443 \
+            -v $PWD/nginx_config:/etc/nginx/templates \
+            -v certbot-etc:/etc/letsencrypt \
+            -v certbot-var:/var/lib/letsencrypt \
+            -v web-root:/usr/share/nginx/html  \
+            nginx

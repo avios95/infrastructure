@@ -1,0 +1,22 @@
+---
+- name: Add docker repo
+  get_url:
+    dest: /etc/yum.repos.d/docker.repo
+    url: https://download.docker.com/linux/centos/docker-ce.repo
+
+- name:  Update packages
+  dnf: name=* state=latest
+
+- name:  install packages
+  dnf: name={{ packages }} state=present
+  vars:
+    packages:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+
+- name: Start service docker
+  service:
+    name: docker
+    state: started
+    enabled: yes

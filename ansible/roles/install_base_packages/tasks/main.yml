@@ -1,0 +1,20 @@
+---
+- name: Update system
+  dnf: name="*" state=latest
+
+- name: install packages
+  dnf: name={{ packages }} state=present
+  vars:
+    packages:
+      - maven
+      - java-11-openjdk
+      - git
+      - python3
+      - sqlite
+      - unzip
+
+- name: Install & run docker
+  include: install_docker.yml
+
+- name: Install aws
+  include: install_aws.yml

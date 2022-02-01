@@ -1,0 +1,17 @@
+---
+- name: Manage docker
+  hosts: all
+
+  vars:
+    to_pull:
+      - { name: hello-world }
+      - { name: jenkins/jenkins }
+    to_deploy:
+      - { name_image: hello-world, name_container: "test_hello" }
+      - { name_image: jenkins/jenkins, name_container: oh-jenkins-jenkins }
+
+  roles:
+    - install_docker
+    - install_docker_compose
+    - pull_images
+    - deploy_images

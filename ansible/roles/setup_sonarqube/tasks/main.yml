@@ -1,0 +1,29 @@
+---
+- name: Gererate pass
+  set_fact:
+    mysql_root_password:  "{{ lookup('password', '/dev/null length=15 chars=ascii_letters') }}"
+
+- name: Check run SonarQube server
+  shell:  docker stop sonarqube &&  docker rm sonarqube || echo 'sonarqube is not running' ; rm -rf /var/lib/postgresql
+
+- name: Check run Postgres DB server
+  shell:  docker stop postgres &&  docker rm postgres || echo 'postgres is not running'
+
+
+- name: Run Postgres DB server
+  shell:  docker run -d --name postgres  \
+                    --restart always \
+                    -e POSTGRES_USER=root \
+                    -e POSTGRES_PASSWORD={{ mysql_root_password }}   \
+                    -p 5432:5432 \
+                    -v /var/lib/postgresql:/var/lib/postgresql \
+                    -v /var/lib/postgresql/data:/var/lib/postgresql/data  postgres
+
+- name: Run SonarQube server
+  shell:  docker run -d --name sonarqube \
+                    --restart always \
+                    -p 9000:9000 \
+                    -e sonar.jdbc.username=root \
+                    -e sonar.jdbc.password={{ mysql_root_password }}  \
+                    -e sonar.jdbc.url=jdbc:postgresql://postgres:5432/postgres \
+                    --link postgres:postgres sonarqube:7.5-community

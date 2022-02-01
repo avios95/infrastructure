@@ -1,0 +1,9 @@
+---
+- name: ping hosts
+  hosts: centos
+  user: root
+  connection: local
+
+  tasks:
+    - name: ping vm
+      ping:

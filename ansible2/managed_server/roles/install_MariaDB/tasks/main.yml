@@ -1,0 +1,15 @@
+---
+- name: Update system
+  dnf: name="*" state=latest
+
+- name: install packages
+  dnf: name=mariadb-server state=present
+
+- name: Start service mariadb
+  service:
+    name: mariadb
+    state: started
+    enabled: yes
+
+- name: mysql_secure_installation
+  include: mysql_secure_installation.yml

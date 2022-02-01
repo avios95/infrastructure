@@ -1,0 +1,124 @@
+---
+- name: Add master init.sql
+  template:
+    src: init.sql.master
+    dest: $PWD/init.sql
+    mode: 644
+  tags:
+      - master
+
+- name: Add master .cnf
+  template:
+    src: master.cnf
+    dest: $PWD/master.cnf
+    mode: 644
+  tags:
+      - master
+
+- name: Check run container
+  shell: docker stop mysql-petclinic &&  docker rm mysql-petclinic || echo 'mysql-petclinic is not running';
+  tags:
+      - master
+
+
+- name: Wipe volumes
+  shell: yes | docker volume prune; rm -rf /opt/petclinic/mysql
+  tags:
+      - master
+
+
+- name: Run master container
+  shell: docker run \
+              -d \
+              --restart always \
+              -e MYSQL_USER={{ master_user }} \
+              -e MYSQL_PASSWORD={{ master_pass }} \
+              -e MYSQL_ROOT_PASSWORD=root \
+              -e MYSQL_ROOT_HOST=% \
+              -e MYSQL_DATABASE={{ db_name }}
+              --name mysql-petclinic \
+              -v /opt/petclinic/mysql:/var/lib/mysql \
+              -v $PWD/master.cnf:/etc/mysql/conf.d/master.cnf \
+              -p 3306:3306 \
+              mysql:5.7.8
+  tags:
+      - master
+
+
+- name: import sql command to master
+  shell: sleep 10s; docker exec -i mysql-petclinic mysql -uroot -proot < $PWD/init.sql
+  tags:
+      - master
+
+##===========================MASTER END============================================###
+
+
+##===========================START SLAVE============================================###
+- name: Gererate pass
+  set_fact:
+    mysql_slave_password:  "{{ lookup('password', '/dev/null length=15 chars=ascii_letters') }}"
+  tags:
+      - slave
+
+- name: Add slave init.sql
+  template:
+    src: init.sql.slave
+    dest: $PWD/init{{ item }}.sql
+    mode: 644
+  with_items:
+     - "{{ id_slave }}"
+  tags:
+     - slave
+
+- name: Add slave .cnf
+  template:
+    src: slave.cnf
+    dest: $PWD/slave{{ item }}.cnf
+    mode: 644
+  with_items:
+    - "{{ id_slave }}"
+  tags:
+      - slave
+
+- name: Check run container
+  shell: docker stop mysql-petclinic-slave{{ item }} &&  docker rm mysql-petclinic-slave{{ item }} || echo 'mysql-petclinic-slave{{ item }} is not running';
+  with_items:
+     - "{{ id_slave }}"
+  tags:
+     - slave
+
+- name: Wipe volumes
+  shell: yes | docker volume prune
+  tags:
+      - slave
+
+- name: Get dump master
+  shell: docker run --rm --entrypoint mysqldump mysql:5.7.8 --all-databases --set-gtid-purged=off -flush-privileges --single-transaction --flush-logs --triggers --routines --events -hex-blob --host={{master_host}} --port=3306 --user=root  --password=root > $PWD/mysqlbackup_dump.sql
+  tags:
+      - slave
+
+- name: Run slave container
+  shell: docker run \
+             -d \
+             --restart always \
+             -e MYSQL_USER={{ slave_user }} \
+             -e MYSQL_PASSWORD={{ mysql_slave_password }} \
+             -e MYSQL_ROOT_PASSWORD=root \
+             -e MYSQL_ROOT_HOST=% \
+             --link mysql-petclinic:mysql-petclinic \
+             --name mysql-petclinic-slave{{ item }} \
+             -v $PWD/slave{{ item }}.cnf:/etc/mysql/conf.d/slave.cnf \
+             -p 330{{ item }}:3306 \
+             mysql:5.7.8
+  with_items:
+   - "{{ id_slave }}"
+  tags:
+     - slave
+
+
+- name: import sql command to slave
+  shell: sleep 10s; docker exec -i mysql-petclinic-slave{{ item }}  mysql -uroot -proot  < $PWD/mysqlbackup_dump.sql;  docker exec -i mysql-petclinic-slave{{ item }}  mysql -uroot -proot  < $PWD/init{{ item }}.sql
+  with_items:
+    - "{{ id_slave }}"
+  tags:
+    - slave

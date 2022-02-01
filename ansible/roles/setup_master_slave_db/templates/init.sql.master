@@ -1,0 +1,2 @@
+ALTER USER '{{ master_user }}'@'%' IDENTIFIED BY '{{ master_pass }}';
+GRANT SELECT, RELOAD, PROCESS, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO '{{ master_user }}'@'%';

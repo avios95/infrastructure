@@ -1,0 +1,21 @@
+---
+- name: install git package
+  dnf:
+    name: git
+    state: present
+
+- name: Clone repo
+  git:
+    repo: 'https://github.com/spring-projects/spring-petclinic.git'
+    dest: /opt/spring-petclinic
+    clone: yes
+
+- name: compile project
+  shell: ./mvnw package
+  args:
+    chdir: /opt/spring-petclinic/
+
+- name: Run app
+  shell: java -jar target/*.jar &
+  args:
+    chdir: /opt/spring-petclinic/

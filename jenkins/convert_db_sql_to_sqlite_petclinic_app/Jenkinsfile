@@ -1,0 +1,38 @@
+pipeline {
+    agent { node { label 'da-kondrate-db' }  }
+    environment {
+      DATE = sh(returnStdout: true, script: 'date +%Y-%m-%d').trim()
+      TIME = sh(returnStdout: true, script: 'date +%H:%M:%S').trim()
+    }
+    options {  buildDiscarder(logRotator(numToKeepStr: '2', artifactNumToKeepStr: '2'))  }
+    triggers {
+        cron('H 2 * * *')
+    }
+    stages {
+        stage('Convert-db'){
+            steps {
+              copyArtifacts( filter: '*.sql', fingerprintArtifacts: true, projectName: 'dump_db_petclinic_app', selector: lastSuccessful())
+              script {
+                INPUT_DB = sh ( script: 'ls -1 *.sql',  returnStdout: true ).trim()
+
+              }
+              sh " /usr/bin/python3 python_scripts/sql2sqlite.py -i ${INPUT_DB} -o ${DATE}-${TIME}.db3 "
+            }
+        }
+        stage('push-dump-to-S3'){
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'aws-access-kondrate', usernameVariable: 'ACCESS_KEY_ID', passwordVariable: 'SECRET_ACCESS_KEY')]) {
+                    sh " aws configure set aws_access_key_id ${ACCESS_KEY_ID}; "
+                    sh " aws configure set aws_secret_access_key ${SECRET_ACCESS_KEY}; "
+                    sh " aws s3 cp ${DATE}-${TIME}.db3 s3://pc-data-storage/db_dumps/kondrate/sqlite/ "
+               }
+            }
+        }
+    }
+    post {
+        always {
+            archiveArtifacts artifacts: '*.db3' , onlyIfSuccessful: true
+            cleanWs()
+        }
+    }
+}

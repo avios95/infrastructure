@@ -1,0 +1,47 @@
+- name: Gererate pass
+  set_fact:
+    mysql_root_password:  "{{ lookup('password', '/dev/null length=15 chars=ascii_letters') }}"
+    mysql_petclinic_password:  "{{ lookup('password', '/dev/null length=15 chars=ascii_letters') }}"
+
+- name: Adds Python MySQL support on RedHat/CentOS
+  yum: name=python3-PyMySQL state=present
+
+- name: delete anonymous MySQL server user for {{ ansible_hostname }}
+  action: mysql_user user="" host="{{ ansible_hostname }}" state="absent"
+
+- name: delete anonymous MySQL server user for localhost
+  action: mysql_user user="" state="absent"
+
+- name: remove the MySQL test database
+  action: mysql_db db=test state=absent
+
+- name: Change root user password on first run
+  mysql_user: login_user=root
+              login_password=''
+              name=root
+              password={{ mysql_root_password }}
+              priv=*.*:ALL,GRANT
+              host={{ item }}
+  with_items:
+    - "{{ ansible_hostname }}"
+    - 127.0.0.1
+    - ::1
+    - localhost
+
+- name: Create a new database with name 'petclinic'
+  action: mysql_db name=petclinic state=present login_user=root login_password={{ mysql_root_password }}
+
+
+- name: Create user with password, all database privileges and 'WITH GRANT OPTION' in db1 and db2
+  mysql_user:  login_user=root
+               login_password={{ mysql_root_password }}
+               state=present
+               name=petclinic
+               password={{ mysql_petclinic_password }}
+               priv=petclinic.*:ALL,GRANT
+               host={{ item }}
+  with_items:
+    - "{{ ansible_hostname }}"
+    - 127.0.0.1
+    - ::1
+    - localhost

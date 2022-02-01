@@ -1,0 +1,7 @@
+---
+- name:  run docker container
+  docker_container:
+    name: "{{item.name_container}}"
+    image: "{{item.name_image}}"
+    state: started
+  with_items: "{{ to_deploy }}"

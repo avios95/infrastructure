@@ -1,0 +1,9 @@
+---
+db_name: petclinic
+master_host: ip
+master_user: petclinic
+master_pass: password
+slave_user: petclinic-slave
+id_slave:
+  - 2
+  - 3

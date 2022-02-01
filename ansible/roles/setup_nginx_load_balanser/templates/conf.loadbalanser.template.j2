@@ -1,0 +1,52 @@
+upstream backend {
+    server ${PROXY_ADDRESS}:${PROXY_PORT} weight=10;
+    server ${PROXY_ADDRESS2}:${PROXY_PORT2} weight=3;
+}
+
+server {
+    charset utf-8;
+    listen 80 default_server;
+    server_name _;
+    location /nginx_status {
+        stub_status on;
+        access_log off;
+        allow all;
+    }
+}
+
+server {
+    listen 80;
+    server_name ${NGINX_HOST} ;
+
+    location ~ /.well-known/acme-challenge {
+       allow all;
+       root /var/www/html;
+    }
+
+    location / {
+      return 301 https://$server_name$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    server_name ${NGINX_HOST} ;
+
+    access_log  /dev/stdout main;
+    ssl_certificate /etc/letsencrypt/live/${NGINX_HOST}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${NGINX_HOST}/privkey.pem;
+
+    location ~ /.well-known/acme-challenge {
+       allow all;
+       root /var/www/html;
+    }
+
+    location / {
+        proxy_pass                          http://backend;
+        proxy_set_header  Host              $http_host;
+        proxy_set_header  X-Real-IP         $remote_addr;
+        proxy_set_header  X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header  X-Forwarded-Proto $scheme;
+        proxy_read_timeout                  900;
+    }
+}

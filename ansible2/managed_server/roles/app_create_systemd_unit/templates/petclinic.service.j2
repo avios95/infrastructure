@@ -1,0 +1,15 @@
+[Unit]
+Description=Manage java application spring-petclinic
+
+[Service]
+WorkingDirectory=/opt/spring-petclinic
+ExecStart=/usr/bin/java -Dspring.profiles.active=mysql -jar /opt/spring-petclinic/target/spring-petclinic-2.5.0-SNAPSHOT.jar
+ExecStop=/bin/kill -15 $MAINPID
+User=apprunner
+Type=simple
+Restart=on-failure
+RestartSec=60
+
+
+[Install]
+WantedBy=multi-user.target

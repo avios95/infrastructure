@@ -1,0 +1,20 @@
+---
+- name:  Upgrade to pip-20.3.4 module for Python
+  pip:
+    name:  pip < 21.0
+    executable: pip2
+    extra_args: --upgrade
+    state: forcereinstall
+
+- name:  Remove docker-py module for Python
+  pip:
+    name: docker-py
+    executable: pip2
+    state: absent
+
+- name:  Install docker module for Python
+  pip:
+    name: docker < 5
+    executable: pip2
+    extra_args: --ignore-installed
+    state: forcereinstall

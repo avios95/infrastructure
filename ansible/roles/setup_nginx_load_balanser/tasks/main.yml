@@ -1,0 +1,7 @@
+- name: Setup with SSL
+  include: ssl.yml
+  when: use_ssl == "True"
+
+- name: Setup with no SSL
+  include: nossl.yml
+  when: use_ssl == "False"

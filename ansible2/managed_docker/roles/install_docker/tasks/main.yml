@@ -1,0 +1,18 @@
+---
+- name: Install for RedHat/Centos
+  include: centos.yml
+  when: ansible_os_family == "RedHat"
+
+- name: Install for Debian & Ubuntu
+  include: debian.yml
+  when: ansible_os_family == "Debian"
+
+- name:  Start docker service
+  service:
+    name: docker
+    state: started
+    enabled: yes
+
+- name: Configure python for asible docker_xxxx modules
+  include: configurepy.yml
+  

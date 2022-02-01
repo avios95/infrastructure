@@ -1,0 +1,13 @@
+---
+- name: Install packages
+  hosts: server1
+  become: true
+
+
+
+  roles:
+#    - install_java_maven
+#    - app_first_run
+#    - app_migrate_to_DB_docker
+#    - app_create_systemd_unit
+    - app_migrate_to_DB_remote   

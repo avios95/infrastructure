@@ -1,0 +1,43 @@
+pipeline {
+    agent {
+        node {
+           label 'da-kondrate-db'
+        }
+    }
+    environment{
+      DB_NAME ='petclinic'
+      DATE = sh(returnStdout: true, script: 'date +%Y-%m-%d').trim()
+      TIME = sh(returnStdout: true, script: 'date +%H:%M:%S').trim()
+    }
+    triggers {
+        cron('H 1 * * *')
+    }
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '2', artifactNumToKeepStr: '2'))
+    }
+    stages {
+        stage('dump-db'){
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'db-access-kondrate', usernameVariable: 'DB_USER', passwordVariable: 'DB_PASS')]) {
+                    sh " docker exec mysql-petclinic mysqldump -uroot -proot ${DB_NAME} > ${DATE}-${TIME}.sql "
+                    sh " ls -la ./ "
+               }
+            }
+        }
+        stage('push-dump-to-S3'){
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'aws-access-kondrate', usernameVariable: 'ACCESS_KEY_ID', passwordVariable: 'SECRET_ACCESS_KEY')]) {
+                    sh " aws configure set aws_access_key_id ${ACCESS_KEY_ID}; "
+                    sh " aws configure set aws_secret_access_key ${SECRET_ACCESS_KEY}; "
+                    sh " aws s3 cp ${DATE}-${TIME}.sql s3://pc-data-storage/db_dumps/kondrate/sql/ "
+               }
+            }
+        }
+    }
+    post {
+        always {
+            archiveArtifacts artifacts: '*.sql', onlyIfSuccessful: true
+            cleanWs()
+        }
+    }
+}

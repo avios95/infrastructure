@@ -1,0 +1,82 @@
+pipeline {
+    agent { node { label 'da-kondrate-app' } }
+    environment {
+        DB_NAME = 'petclinic'
+        DB_HOST = 'ip:3306'
+    }
+    options {  buildDiscarder(logRotator(numToKeepStr: '2', artifactNumToKeepStr: '2'))  }
+    triggers {
+        cron('H 2 * * *')
+    }
+    stages {
+        stage('Checkout scm') {
+            steps {
+              checkout([$class: 'GitSCM',
+                  branches: [[name: '*/main']],
+                  doGenerateSubmoduleConfigurations: false,
+                  extensions: [[$class: 'CleanCheckout']],
+                  submoduleCfg: [],
+                  userRemoteConfigs: [[ url: 'https://gogs-repo.ml/git/kondrate/petclinic.git']]
+              ])
+            }
+        }
+
+        stage('Build-app & SonarQube analysis') {
+            steps {
+              withCredentials([usernamePassword(credentialsId: 'db-access-kondrate', usernameVariable: 'DB_USER', passwordVariable: 'DB_PASS')]) {
+                  sh """ sed -i -e "s#localhost/petclinic#${DB_HOST}/${DB_NAME}#g" \
+                                -e "s#MYSQL_USER:petclinic#MYSQL_USER:${DB_USER}#g" \
+                                -e "s#MYSQL_PASS:petclinic#MYSQL_PASS:${DB_PASS}#g" src/main/resources/application-mysql.properties """
+              }
+              withSonarQubeEnv('sonar-kondrate') {
+                 sh './mvnw clean package sonar:sonar'
+              }
+            }
+        }
+        stage("Quality Gate"){
+            steps {
+                timeout(time: 10, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+        stage('Build-image') {
+            steps {
+              sh " docker build \
+                               --no-cache \
+                               -t docker-registry.ml/java-petclinic:latest \
+                               -t docker-registry.ml/java-petclinic:${BUILD_NUMBER} \
+                               -f ./Dockerfile  . "
+            }
+        }
+        stage('Push image'){
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'docker-registry-kondrate', usernameVariable: 'user', passwordVariable: 'pass')]) {
+                    sh " docker login http://docker-registry.ml  -u ${user} -p ${pass}"
+                }
+                sh " docker push docker-registry.ml/java-petclinic:${BUILD_NUMBER} "
+                sh " docker push docker-registry.ml/java-petclinic:latest "
+            }
+        }
+
+    }
+    post {
+        failure {
+            // checkout([$class: 'GitSCM',
+            //     branches: [[name: '*/master']],
+            //     doGenerateSubmoduleConfigurations: false,
+            //     extensions: [[$class: 'CleanCheckout']],
+            //     submoduleCfg: [],
+            //     userRemoteConfigs: [[ url: 'https://gogs-repo.ml/git/kondrate/infrastructure.git']]
+            // ])
+            // withCredentials([string(credentialsId: 'webex-key-kondrate', variable: 'WBX_KEY'),string(credentialsId: 'webex-room-id-kondrate', variable: 'WBX_ROOM_ID')]) {
+            //     sh 'WBX_KEY="${WBX_KEY}" WBX_ROOM_ID="${WBX_ROOM_ID}" MESSAGE="${BUILD_URL} has result FAILED"  python3 python_scripts/webex.py '
+            // }
+            cleanWs()
+        }
+        success {
+            cleanWs()
+        }
+
+    }
+}

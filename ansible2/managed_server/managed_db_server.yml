@@ -1,0 +1,13 @@
+---
+- name: Install packages
+  hosts: server2
+  become: true
+
+
+  roles:
+    - install_MariaDB
+  tasks:
+    - debug:
+        msg: "#MySQL root / {{ mysql_root_password }}"
+    - debug:
+        msg: "#MySQL petclinic / {{ mysql_petclinic_password }}"

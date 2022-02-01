@@ -1,0 +1,6 @@
+---
+- name: Manage jenkins
+  hosts: all
+
+  roles:
+    - install_jenkins

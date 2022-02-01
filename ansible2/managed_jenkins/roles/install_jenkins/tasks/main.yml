@@ -1,0 +1,105 @@
+---
+- name:  Add Apt signing key from official jenkins repo
+  apt_key:
+    url:  https://pkg.jenkins.io/debian-stable/jenkins.io.key
+    state: present
+  when: ansible_os_family == "Debian"
+
+- name:  Add jenkins official repository
+  apt_repository:
+    repo: deb https://pkg.jenkins.io/debian-stable binary/
+    state: present
+    filename: jenkins
+  when: ansible_os_family == "Debian"
+
+- name:  Update system
+  apt: name=* state=latest update_cache=yes force_apt_get=yes
+  when: ansible_os_family == "Debian"
+
+- name:  Install packages
+  apt:
+    name:
+      - jenkins
+      - openjdk-11-jdk
+    state: present
+  when: ansible_os_family == "Debian"
+
+
+- name: set other port
+  lineinfile:
+    path: /etc/default/jenkins
+    regexp: 'HTTP_PORT=(.*)$'
+    line: 'HTTP_PORT=8090'
+  when: ansible_os_family == "Debian"
+
+#-----------------------------------------------------------------
+- name: Add jenkins repo
+  get_url:
+    dest: /etc/yum.repos.d/jenkins.repo
+    url: https://pkg.jenkins.io/redhat-stable/jenkins.repo
+  when: ansible_os_family == "RedHat"
+
+- name: Import a key from a url
+  rpm_key:
+    state: present
+    key: https://pkg.jenkins.io/redhat-stable/jenkins.io.key
+  when: ansible_os_family == "RedHat"
+
+- name:  install Epel repo
+  yum: name=epel-release state=present
+  when: ansible_os_family == "RedHat"  and ansible_facts['distribution_major_version'] == "7"
+
+- name:  Update packages
+  yum: name=* state=latest
+  when: ansible_os_family == "RedHat"  and ansible_facts['distribution_major_version'] == "7"
+
+- name:  Install packages
+  yum:
+    name:
+      - jenkins
+      - java-11-openjdk
+    state: present
+  when: ansible_os_family == "RedHat"  and ansible_facts['distribution_major_version'] == "7"
+
+- name:  install Epel repo
+  dnf: name=epel-release state=present
+  when: ansible_os_family == "RedHat"  and ansible_facts['distribution_major_version'] == "8"
+
+- name:  Update packages
+  dnf: name=* state=latest
+  when: ansible_os_family == "RedHat"  and ansible_facts['distribution_major_version'] == "8"
+
+- name:  Install packages
+  dnf:
+    name:
+      - jenkins
+      - java-11-openjdk
+    state: present
+  when: ansible_os_family == "RedHat"  and ansible_facts['distribution_major_version'] == "8"
+
+
+
+
+- name: set other port
+  lineinfile:
+    path: /etc/sysconfig/jenkins
+    regexp: 'JENKINS_PORT=(.*)$'
+    line: 'JENKINS_PORT="8090"'
+  when: ansible_os_family == "RedHat"
+
+#-----------------------------------------------------------------
+
+
+- name:  Start jenkins service
+  service:
+    name: jenkins
+    state: started
+    enabled: yes
+
+- name: Display initialAdminPassword contents
+  command: cat /var/lib/jenkins/secrets/initialAdminPassword
+  register: command_output
+
+- name: Print to console
+  debug:
+    msg: "initialAdminPassword:   {{command_output.stdout}} "

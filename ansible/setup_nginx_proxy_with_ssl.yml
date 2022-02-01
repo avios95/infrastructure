@@ -1,0 +1,7 @@
+---
+- name: Run setup_nginx_proxy_with_ssl
+  hosts: server3
+  become: true
+
+  roles:
+    - setup_nginx_proxy_with_ssl

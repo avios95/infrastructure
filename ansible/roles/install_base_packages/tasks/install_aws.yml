@@ -1,0 +1,11 @@
+---
+- name: Dowload awscliv2.zip
+  get_url:
+    dest: ./awscliv2.zip
+    url: https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip
+
+- name:  Unpack awscliv2.zip
+  shell: unzip ./awscliv2.zip
+
+- name:  install aws
+  shell: ./aws/install

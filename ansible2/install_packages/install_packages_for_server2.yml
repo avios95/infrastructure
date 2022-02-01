@@ -1,0 +1,7 @@
+---
+- name: Install packages
+  hosts: server2
+
+  roles:
+#    - install_java_maven
+    - install_MariaDB

@@ -1,0 +1,7 @@
+---
+- name: Run  setup_prometheus_grafana
+  hosts: server3
+  become: true
+
+  roles:
+    - setup_prometheus_grafana

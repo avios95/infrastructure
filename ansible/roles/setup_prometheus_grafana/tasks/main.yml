@@ -1,0 +1,88 @@
+---
+  #https://russianblogs.com/article/8036920964/
+  #https://github.com/nginxinc/nginx-prometheus-exporter/blob/master/grafana/dashboard.json
+- name: Add config directory
+  file:
+    path: $PWD/prometheus
+    state: directory
+
+- name: Add prometheus config
+  copy:
+    src: prometheus.yml
+    dest: $PWD/prometheus/prometheus.yml
+    mode: 644
+
+- name: Add prometheus check status config
+  copy:
+    src: node_down.yml
+    dest: $PWD/prometheus/node_down.yml
+    mode: 644
+
+- name: Add nginx.conf
+  copy:
+    src: nginx.conf
+    dest: $PWD/nginx.conf
+    mode: 644
+
+
+- name: Add loki local-config.yaml
+  copy:
+    src: local-config.yaml
+    dest: $PWD/local-config.yaml
+    mode: 644
+
+- name: Add promtail docker-config.yml
+  copy:
+    src: promtail.yml
+    dest: $PWD/promtail.yml
+    mode: 644
+
+
+- name: Stop container
+  shell:  docker stop prometheus grafana node-exporter nginx-exporter nginx-lua loki promtail || echo 'some containers is not running'
+
+
+- name: Run container
+  shell: docker run --rm -d -p 9100:9100 --name=node-exporter \
+            quay.io/prometheus/node-exporter
+
+- name: Run container
+  shell: docker run --rm -d -p 9113:9113 --name=nginx-exporter \
+            nginx/nginx-prometheus-exporter \
+            -nginx.scrape-uri "http://10.124.43.123/nginx_status"
+
+- name: Run container
+  shell: docker run --rm -d -p 9145:9145 --name=nginx-lua \
+            --env NGINX_STATUS="http://10.124.43.123/nginx_status" \
+            -v $PWD/nginx.conf:/nginx/conf/nginx.conf
+            oatty/nginx-lua-prometheus
+
+- name: Run container
+  shell: docker run --rm -d -p 3100:3100 --name=loki \
+            -v $PWD/local-config.yaml:/etc/loki/local-config.yaml \
+            grafana/loki:1.4.1 \
+            -config.file=/etc/loki/local-config.yaml
+
+- name: Run container
+  shell: docker run --rm -d --name=promtail \
+            -v /var/lib/docker/containers:/var/lib/docker/containers \
+            -v $PWD/promtail.yml:/etc/promtail/promtail.yml \
+            --link loki:loki \
+            grafana/promtail:1.4.1 \
+            -config.file=/etc/promtail/promtail.yml
+
+
+- name: Run container
+  shell: docker run --rm -d -p 9090:9090 --name=prometheus \
+            --link node-exporter:node-exporter \
+            --link nginx-exporter:nginx-exporter \
+            --link nginx-lua:nginx-lua \
+            --link loki:loki \
+            -v $PWD/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml \
+            -v $PWD/prometheus/node_down.yml:/etc/prometheus/node_down.yml \
+            prom/prometheus
+
+- name: Run container
+  shell: docker run --rm -d -p 3000:3000 --name=grafana \
+            -v grafana:/var/lib/grafana \
+            grafana/grafana

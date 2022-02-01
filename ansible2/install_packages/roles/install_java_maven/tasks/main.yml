@@ -1,0 +1,11 @@
+---
+- name: Update system
+  dnf: name="*" state=latest
+
+
+- name: install packages
+  dnf: name={{ packages }} state=present
+  vars:
+    packages:
+      - maven
+      - java-11-openjdk
